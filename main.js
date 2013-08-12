@@ -1,47 +1,126 @@
 enchant();
 
 window.onload = function () {
-    game = new Game(320, 160);
+    game = new Game(320, 320);
+    game.opacity = 1.0; //For debugging
+
     game.fps = 60;
     game.width = 320;
-    game.height = 160;
+    game.height = 320;
+    game.chocSize = 16;
+    game.fruitSize = 16;
+    game.playerSize = 32;
     game.keybind('32', 'a');
     game.keybind('13', 'b');
+    // game.scale = 1;
 
     game.score = 0;
+    game.fat = 0;
     game.touched = false;
+    game.msg = new Label();
+    game.msg.opacity = game.opacity;
+    game.chocs = 0;
 
     game.preload('graphic.png', 'effect0.gif', 'icon0.png', 'font0.png', 'boxes.png');
 
     game.onload = function () {
-        player = new Player(144, 64);
-        game.rootScene.backgroundColor = 'black';
+        player = new Player(game.width/2, game.height-game.playerSize);
+        chocs = new Array();
+        fruits = new Array();
+
+        game.rootScene.backgroundColor = 'white';
 
         game.rootScene.addEventListener('enterframe', function () {
-            
+            // Spawns chocolate - yummy
+            if(game.frame % 25 == 0) {
+                var x = rand(game.width)+1; //0 to 320(inclusive)
+                var lanes = Math.floor(game.width/game.chocSize); //This is why is better to use a width multiple of 16
+                x = x % lanes * game.chocSize;
+                var choc = new Choc(x, 0, game.chocSize);
+                choc.key = game.frame;
+                chocs[choc.key] = choc;
+                game.chocs++;
+            }
+
+            // Spawns fruit
+            if(game.frame % 40 == 0) {
+                var x = rand(game.width)+1; //0 to 320(inclusive)
+                var lanes = Math.floor(game.width/game.fruitSize); //This is why is better to use a width multiple of 16
+                x = x % lanes * game.fruitSize;
+                var fruit = new Fruit(x, 0, game.fruitSize);
+                fruit.key = game.frame;
+                fruits[fruit.key] = fruit;
+            }
+
+            game.msg.text = " Score: " + game.score + " Fat: " + game.fat;
+
+            // Game over
+            if (game.fat > 4) {
+                game.msg.text = "Game over! Final Score: " + game.score;
+                game.stop();
+            }
+
         });
+
+        game.rootScene.addChild(game.msg);
     };
     game.start();
 };
 
-var Trail = enchant.Class.create(enchant.Sprite, {
+var Fruit = enchant.Class.create(enchant.Sprite, {
 
-    initialize: function (x, y) {
-        enchant.Sprite.call(this, 16, 16);
+    initialize: function (x, y, size) {
+        enchant.Sprite.call(this, size, size);
         this.image = game.assets['icon0.png'];
-        this.x = x - this.width/2;
-        this.y = y - this.height/2;
-        this.frame = 47;
+        this.x = x;
+        this.y = y;
+        this.frame = 15 + rand(4); //15,16,17,18
+        this.speed = 1;
+        this.opacity = game.opacity;
 
         this.addEventListener('enterframe', function () {
-            this.opacity = 1 - this.age / game.fps;
+            this.y += this.speed;
+            if(this.y > game.height || this.x > game.width || this.x < -this.width || this.y < -this.height) {
+                this.remove();
+            } 
 
-            if (this.age == game.fps) {
-                game.rootScene.removeChild(this);
-            }
         });
 
         game.rootScene.addChild(this);
+    },
+
+    remove: function () {
+        game.rootScene.removeChild(this);
+        delete fruits[this.key];
+    }
+});
+
+var Choc = enchant.Class.create(enchant.Sprite, {
+
+    initialize: function (x, y, size) {
+        enchant.Sprite.call(this, size, size);
+        this.image = game.assets['icon0.png'];
+        this.x = x;
+        this.y = y;
+        this.frame = 24;
+        this.speed = 1;
+        this.opacity = game.opacity;
+
+        this.addEventListener('enterframe', function () {
+            this.y += this.speed;
+            if(this.y > game.height || this.x > game.width || this.x < -this.width || this.y < -this.height) {
+                this.remove();
+            } 
+
+        });
+
+        game.rootScene.addChild(this);
+    },
+
+    remove: function () {
+        game.rootScene.removeChild(this);
+        delete chocs[this.key];
+        game.chocs--;
     }
 });
 
@@ -53,41 +132,12 @@ var Player = enchant.Class.create(enchant.Sprite, {
         this.x = x;
         this.y = y;
         this.frame = [0];
-        this.speed = 10;
+        this.speed = 3;
         this.autoDirectionX = 0;
         this.autoDirectionY = 0;
         this.autoMove = 0;
         this.touched = false;
-
-
-        /*
-        game.rootScene.addEventListener('touchstart', function (e) {
-            player.y = e.y;
-            game.touched = true;
-        });
-        game.rootScene.addEventListener('touchmove', function (e) {
-            player.y = e.y;
-        });
-        game.rootScene.addEventListener('touchend', function (e) {
-            player.y = e.y;
-            game.touched = false;
-        });
-        */
-
-        game.rootScene.addEventListener('bbuttondown', function (e) {
-            if (player.autoMove) {
-                player.autoMove = 0;
-            } else {
-                player.autoMove = 1;
-                var x = Math.floor((Math.random()*3)-1);
-                var y = Math.floor((Math.random()*3)-1);
-                if (x == 0 && y == 0) {
-                    x = 1;
-                }
-                player.autoDirectionX = x;
-                player.autoDirectionY = y;
-            }
-        });
+        this.opacity = game.opacity;
 
         this.addEventListener('enterframe', function () {
             if (game.input.left) {
@@ -96,62 +146,53 @@ var Player = enchant.Class.create(enchant.Sprite, {
             if (game.input.right) {
                 this.x += this.speed;
             }
-            if (game.input.down) {
-                //this.y += this.speed;
-            }
-            if (game.input.up) {
-                //this.y += -this.speed;
-            }
 
-            // Boundary detection
-            if (this.x <= 0) {
-                this.x = 0;
-                this.autoDirectionX = 1;
-            }
+            this.testBoundary();
+            this.testCollision();
 
-            if (this.x + this.width >= game.width) {
-                this.x = game.width - this.width;
-                this.autoDirectionX = -1;
-            }
-
-            if (this.y <= 0) {
-                this.y = 0;
-                this.autoDirectionY = 1;
-            }
-
-            if (this.y + this.height >= game.height) {
-                this.y = game.height - this.height;
-                this.autoDirectionY = -1;
-            }
-
-            // Movement
-            if (game.input.a) {
-                this.scaleX = 2;
-                this.scaleY = 2;
-            } else {
-                if ((this.scaleX > 1 || this.scaleY > 1) && game.frame % 10 == 0) {
-                    this.scaleX = 1;
-                    this.scaleY = 1;
-                }
-            }
-
-            // Auto Movement
-            if (this.autoMove) {
-                var trail = new Trail(this.x + this.width/2, this.y + this.height/2);
-
-                this.x += this.speed * this.autoDirectionX;
-                this.y += this.speed * this.autoDirectionY;
-            }
-
-
-            /*
-            if(game.touched && game.frame % 3 == 0) {
-                var s = new PlayerShoot(this.x, this.y);
-            }
-            */
+            this.scaleX = 1 + game.fat/10;
         });
 
         game.rootScene.addChild(this);
+    },
+
+
+    testBoundary: function () {
+        // Boundary detection
+        if (this.x <= 0) {
+            this.x = 0;
+        }
+
+        if (this.x + this.width >= game.width) {
+            this.x = game.width - this.width;
+        }
+
+        if (this.y <= 0) {
+            this.y = 0;
+        }
+
+        if (this.y + this.height >= game.height) {
+            this.y = game.height - this.height;
+        }
+    },
+
+    testCollision: function () {
+        for (var i in chocs) {
+            if(chocs[i].intersect(this)) {
+                chocs[i].remove();
+                game.fat += 1;
+            }
+        }
+        for (var i in fruits) {
+            if(fruits[i].intersect(this)) {
+                fruits[i].remove();
+                game.score += 1;
+            }
+        }
     }
+
 });
 
+function rand(num) {
+    return Math.floor(Math.random() * num);
+}
